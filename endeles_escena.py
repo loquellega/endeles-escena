@@ -152,6 +152,12 @@ async def servidores(args, relevo, listo):
 
 
 class Pagina(http.server.SimpleHTTPRequestHandler):
+    def handle(self):
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError):
+            pass   # la página cerró la conexión a medio envío: no es un error
+
     def do_GET(self):
         # un montaje.json junto al programa manda sobre el que viene dentro
         if self.path.split("?")[0] == "/montaje.json":

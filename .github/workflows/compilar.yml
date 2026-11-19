@@ -59,7 +59,7 @@ jobs:
           if [ -f dist/EndelesEscena.exe ]; then EXE=dist/EndelesEscena.exe; else EXE=dist/EndelesEscena; fi
           "$EXE" --sin-ventana --prueba 60 > prueba.log 2>&1 &
           for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:9207/escena.html | grep -q "Endeles Escena"; then echo "arrancó en ${i}x2 s"; cat prueba.log; exit 0; fi
+            if curl -sf -o pagina.html http://127.0.0.1:9207/escena.html && grep -q "Endeles Escena" pagina.html; then echo "arrancó en ${i}x2 s"; cat prueba.log; exit 0; fi
             sleep 2
           done
           cat prueba.log; exit 1
