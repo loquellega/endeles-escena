@@ -1,0 +1,6 @@
+web/
+endeles/
+build/
+dist/
+*.spec
+__pycache__/

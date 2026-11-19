@@ -1,0 +1,86 @@
+name: Compilar ejecutables
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      endeles_ref:
+        description: "Rama o etiqueta de loquellega/endeles con el bosque"
+        default: "escena"
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  # el bosque viene de loquellega/endeles; cuando los enganches de escena estén en main, cambia esto a main
+  ENDELES_REF: ${{ github.event.inputs.endeles_ref || 'escena' }}
+
+jobs:
+  compilar:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            archivo: EndelesEscena-windows.exe
+            sep: ";"
+          - os: macos-latest
+            archivo: EndelesEscena-mac.zip
+            sep: ":"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: loquellega/endeles
+          ref: ${{ env.ENDELES_REF }}
+          path: endeles
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependencias
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Construir el bosque
+        run: python construir.py --endeles endeles
+
+      - name: Compilar
+        run: pyinstaller --onefile --name EndelesEscena --add-data "web${{ matrix.sep }}web" --collect-submodules websockets --noconfirm endeles_escena.py
+
+      - name: Prueba rápida (servidor sin ventana)
+        shell: bash
+        run: |
+          if [ -f dist/EndelesEscena.exe ]; then EXE=dist/EndelesEscena.exe; else EXE=dist/EndelesEscena; fi
+          "$EXE" --sin-ventana --prueba 60 > prueba.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9207/escena.html | grep -q "Endeles Escena"; then echo "arrancó en ${i}x2 s"; cat prueba.log; exit 0; fi
+            sleep 2
+          done
+          cat prueba.log; exit 1
+
+      - name: Empaquetar
+        shell: bash
+        run: |
+          if [ -f dist/EndelesEscena.exe ]; then
+            mv dist/EndelesEscena.exe "dist/${{ matrix.archivo }}"
+          else
+            cd dist && zip -9 "${{ matrix.archivo }}" EndelesEscena
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archivo }}
+          path: dist/${{ matrix.archivo }}
+
+      - name: Adjuntar a la versión publicada
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "dist/${{ matrix.archivo }}" --clobber
